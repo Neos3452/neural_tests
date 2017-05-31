@@ -280,19 +280,32 @@ function go() {
     var output2 = [];
     var output3 = [];
     var avgError = 0;
+
+    var batchSize = 10;
+    var error = [0, 0];
     for (var i = 0; i < trainData; ++i) {
         output.push(l.value(original[i]).concat([1]));
         output2.push(l2.value(output[i]).concat([1]));
         output3.push(l3.value(output2[i]));
 
-        var error = [0, 0];
+
+            error = [0, 0];
         if (classes[i] > 0.5) {
-            error[0] = output3[i][0] - 0;
-            error[1] = output3[i][1] - 1;
+            error[0] += output3[i][0] - 0;
+            error[1] += output3[i][1] - 1;
         } else {
-            error[0] = output3[i][0] - 1;
-            error[1] = output3[i][1] - 0;
+            error[0] += output3[i][0] - 1;
+            error[1] += output3[i][1] - 0;
         }
+        /*
+        if ((1 + i%batchSize) == batchSize) {
+            error = error.map(function(x){return x / batchSize;});
+
+
+            error = [0, 0];
+        }
+        */
+
 //         var error = (output3[i] - classes[i]);
 //         var error = (output3[i] > 0.5) == (classes[i] > 0.5);
 //         avgError += error * error;
