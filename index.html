@@ -67,7 +67,9 @@ function Neuron(inputSize, func) {
 //     this.lastValue = 0;
     this.weights = [];
     for (var i = 0; i < inputSize; ++i) {
-        this.weights.push(10*Math.random()-5);
+        this.weights.push(5*Math.random()-2.5);
+        if (this.weights[i] == 0)
+            --i;
 //         this.weights.push(Math.random());
 //         this.weights.push(1);
     }
