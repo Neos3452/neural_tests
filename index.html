@@ -10,8 +10,17 @@ canvas {
 </head>
 <body>
 <canvas id="truth" width="200px" height="200px"></canvas>
+<br/>
 <canvas id="network" width="200px" height="200px"></canvas>
-<canvas id="network2" width="200px" height="200px"></canvas>
+<br/>
+<canvas id="network21" width="200px" height="200px"></canvas>
+<canvas id="network22" width="200px" height="200px"></canvas>
+<canvas id="network23" width="200px" height="200px"></canvas>
+<canvas id="network24" width="200px" height="200px"></canvas>
+<br/>
+<canvas id="network3" width="200px" height="200px"></canvas>
+<br/>
+<canvas id="output" width="200px" height="200px"></canvas>
 <br/>
 Iteration: <label id="iteration">0</label>
 <br/>
@@ -20,6 +29,25 @@ Classified wrong: <label id="error">NaN</label>%
 <input id="learnRate" type="number" value="0.03" step="0.02"/>
 <input id="playpause" type="button" value="Play/Pause" />
 <script>
+
+function indexOfMax(arr) {
+    if (arr.length === 0) {
+        return -1;
+    }
+
+    var max = arr[0];
+    var maxIndex = 0;
+
+    for (var i = 1; i < arr.length; i++) {
+        if (arr[i] > max) {
+            maxIndex = i;
+            max = arr[i];
+        }
+    }
+
+    return maxIndex;
+}
+
 function Sigmoid() {
 }
 
@@ -104,30 +132,82 @@ Layer.prototype.correctErrors = function(input, errors, learningRate) {
     }
 }
 
-function paintPlot(canvas, xy, classes) {
+function paintPlot(canvas, xy, classes, clearCavas, xi, yi) {
+    clearCavas = clearCavas !== false;
+    xi = (typeof xi !== 'undefined') ? xi : 0;
+    yi = (typeof yi !== 'undefined') ? yi : 1;
 
-    var margin = 5;
+    var margin = 0;
 
     var maxClass = Math.max.apply(null, classes);
-//     var maxInput = Math.max.apply(null, input);
-//     var minInput = Math.min.apply(null, input);
-//     var inputStep = (canvas.width - 2*margin) / (maxInput - minInput);
-//     var inputStep = (canvas.width - 2*margin) / input.length;
-//     var maxOutput = Math.max.apply(null, output);
-//     var minOutput = Math.min.apply(null, output);
-//     var outputStep = (canvas.height - 2*margin) / (maxOutput - minOutput);
-//     var outputStep = (canvas.height - 2*margin) / output.length;
     var context = canvas.getContext('2d');
-    context.clearRect(0, 0, canvas.width, canvas.height);
+    if (clearCavas)
+        context.clearRect(0, 0, canvas.width, canvas.height);
     for (var i = 0; i < xy.length; ++i) {
         context.fillStyle = 'hsl(' + (classes[i] * (360/(maxClass+1))) + ', 100%,50%)';
         context.beginPath();
-//         var x = margin + input[i] * inputStep;
-//         var y = margin + output[i] * outputStep;
-        var x = margin + (xy[i][0] * (canvas.width - 2*margin));
-        var y = margin + ((1 - xy[i][1]) * (canvas.height - 2*margin));
+        var x = margin + (xy[i][xi] * (canvas.width - 2*margin));
+        var y = margin + ((1 - xy[i][yi]) * (canvas.height - 2*margin));
         context.arc(x, y, 3, 0, 2 * Math.PI);
+        context.strokeStyle = "black";
+        context.stroke();
         context.fill();
+    }
+}
+
+function visualizeNetwork(canvas, network, clearCavas) {
+    clearCavas = clearCavas !== false;
+
+    var margin = 0;
+
+    var pointsPerAxis = 10;
+    var intervals = pointsPerAxis-1;
+    var step = 1 / intervals;
+    var output = [];
+    for (var i = 0; i < pointsPerAxis; ++i) {
+        var row = [];
+        for (var j = 0; j < pointsPerAxis; ++j) {
+            row.push(network.value([step * j, step * i]));
+            //row.push([0,0]);
+        }
+        output.push(row);
+    }
+    var context = canvas.getContext('2d');
+    if (clearCavas)
+        context.clearRect(0, 0, canvas.width, canvas.height);
+    var scaleY = canvas.height / (intervals);
+    var scaleX = canvas.width / (intervals);
+    for (var y = 0; y < canvas.height; ++y) {
+        var iyv = y / scaleY;
+        var iy0 = Math.floor(iyv);
+        var iy1 = Math.ceil(iyv);
+        for (var x = 0; x < canvas.width; ++x) {
+            var ixv = x / scaleX;
+            var ix0 = Math.floor(ixv);
+            var ix1 = Math.ceil(ixv);
+
+            var el00 = output[iy0][ix0];
+            var el10 = output[iy1][ix0];
+            var el01 = output[iy0][ix1];
+            var el11 = output[iy1][ix1];
+
+            var dx = ixv - ix0;
+            var dy = iyv - iy0;
+
+            function inner(f00, f10, f01, f11, x, y) {
+                var un_x = 1.0 - x; var un_y = 1.0 - y;
+                return (f00 * un_x * un_y + f10 * x * un_y + f01 * un_x * y + f11 * x * y);
+            }
+
+            var inter = [];
+            for (var k = 0; k < el00.length; ++k) {
+                inter.push(inner(el00[k], el10[k], el01[k], el11[k], dy, dx));
+            }
+
+            context.fillStyle = 'hsl(' + (indexOfMax(inter) * (360/(inter.length))) + ', 100%,50%)';
+            // TODO: it's flipped, either vertically or horizontally
+            context.fillRect(x, canvas.height - 1 - y, 1, 1);
+        }
     }
 }
 
@@ -145,8 +225,13 @@ var iterationLabel = document.getElementById('iteration');
 
 var trainData = 200;
 var l = new Layer(2, Neuron.bind(null, 2));
-var l2 = new Layer(6, Neuron.bind(null, 3));
-var l3 = new Layer(2, Neuron.bind(null, 7));
+var l2 = new Layer(4, Neuron.bind(null, 3));
+var l3 = new Layer(2, Neuron.bind(null, 5));
+var net = {
+    value: function(input) {
+        return l3.value(l2.value(l.value(input).concat([1])).concat([1]));
+    }
+}
 var original = [];
 var classes = [];
 
@@ -221,7 +306,15 @@ function go() {
 
     paintPlot(document.getElementById('truth'), original, classes);
     paintPlot(document.getElementById('network'), output, classes);
-    paintPlot(document.getElementById('network2'), output2, classes);
+    paintPlot(document.getElementById('network21'), output2, classes, 0, 1);
+    paintPlot(document.getElementById('network22'), output2, classes, 1, 2);
+    paintPlot(document.getElementById('network23'), output2, classes, 2, 3);
+    paintPlot(document.getElementById('network24'), output2, classes, 3, 0);
+    paintPlot(document.getElementById('network3'), output3, classes);
+
+
+    visualizeNetwork(document.getElementById('output'), net);
+    paintPlot(document.getElementById('output'), original, classes, false);
 
     if (!stop)
         window.setTimeout(go.bind(this), 0);
