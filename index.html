@@ -49,14 +49,16 @@ function indexOfMax(arr) {
 }
 
 function Sigmoid() {
+    this.lastValue = 0;
 }
 
 Sigmoid.prototype.value = function(x) {
-    return 1 / (1 + Math.exp(-x));
+    this.lastValue = 1 / (1 + Math.exp(-x));
+    return this.lastValue;
 }
 
 Sigmoid.prototype.derivative = function(x) {
-    let value = this.value(x);
+    let value = (typeof x !== 'undefined') ? this.value(x) : this.lastValue;
     return value * (1 - value);
 }
 
@@ -86,12 +88,12 @@ Neuron.prototype.value = function(input) {
     return this.func.value(this.weightedInputSum(input));
 }
 
-Neuron.prototype.errorGradient = function(input, error) {
-    return error * this.func.derivative(this.weightedInputSum(input));
+Neuron.prototype.errorGradient = function(error, input) {
+    return error * this.func.derivative(input && this.weightedInputSum(input));
 }
 
-Neuron.prototype.adjustWeights = function(input, error, learnRate) {
-    let errGradient = this.errorGradient(input, error);
+Neuron.prototype.adjustWeights = function(learnRate, error, input, useCached) {
+    let errGradient = this.errorGradient(error, (useCached ? undefined : input));
     for (var i = 0; i < this.weights.length; ++i) {
         this.weights[i] += -1 * learnRate * errGradient * input[i];
     }
@@ -112,13 +114,14 @@ Layer.prototype.value = function(input) {
     return output;
 }
 
-Layer.prototype.inputError = function(input, errors) {
+Layer.prototype.inputError = function(errors, input, useCached) {
+    useCached = useCached === true;
     var inputErrors = [];
     for (var j = 0; j < input.length; ++j) {
         inputErrors.push(0);
     }
     for (var i = 0; i < this.neurons.length; ++i) {
-        var errorGradient = this.neurons[i].errorGradient(input, errors[i]);
+        var errorGradient = this.neurons[i].errorGradient(errors[i], (useCached ? undefined : input));
         for (var j = 0; j < input.length; ++j) {
             inputErrors[j] += errorGradient * this.neurons[i].weights[j];
         }
@@ -126,9 +129,10 @@ Layer.prototype.inputError = function(input, errors) {
     return inputErrors;
 }
 
-Layer.prototype.correctErrors = function(input, errors, learningRate) {
+Layer.prototype.correctErrors = function(learningRate, errors, input, useCached) {
+    useCached = useCached === true;
     for (var i = 0; i < this.neurons.length; ++i) {
-        this.neurons[i].adjustWeights(input, errors[i], learningRate);
+        this.neurons[i].adjustWeights(learningRate, errors[i], input, useCached);
     }
 }
 
@@ -292,11 +296,11 @@ function go() {
 //         avgError += error * error;
         avgError += (output3[i][1] > output3[i][0]) != (classes[i] > 0.5);
         var errors = error;
-        var l2Errors = l3.inputError(output2[i], errors);
-        var l1Errors = l2.inputError(output[i], l2Errors);
-        l3.correctErrors(output2[i], errors, rate);
-        l2.correctErrors(output[i], l2Errors, rate);
-        l.correctErrors(original[i], l1Errors, rate);
+        var l2Errors = l3.inputError(errors, output2[i], true);
+        var l1Errors = l2.inputError(l2Errors, output[i], true);
+        l3.correctErrors(rate, errors, output2[i], true);
+        l2.correctErrors(rate, l2Errors, output[i], true);
+        l.correctErrors(rate, l1Errors, original[i], true);
     }
     avgError /= trainData;
     errorLabel.innerHTML = avgError * 100;
