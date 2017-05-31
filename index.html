@@ -144,7 +144,7 @@ var errorLabel = document.getElementById('error');
 var iterationLabel = document.getElementById('iteration');
 
 var trainData = 200;
-var l = new Layer(2, Neuron.bind(null, 3));
+var l = new Layer(2, Neuron.bind(null, 2));
 var l2 = new Layer(6, Neuron.bind(null, 3));
 var l3 = new Layer(2, Neuron.bind(null, 7));
 var original = [];
@@ -174,7 +174,7 @@ for (var i = 0; i < trainData; ++i) {
         x = point[0];
         y = point[1];
     }
-    original.push([x, y, 1]);
+    original.push([x, y]);
     classes.push(pClass);
 }
 var currentIteration = 0;
