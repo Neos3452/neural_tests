@@ -145,8 +145,9 @@ Layer.prototype.correctErrors = function(learningRate, errors, input, useCached)
     }
 }
 
-function paintPlot(canvas, xy, classes, clearCavas, xi, yi) {
+function paintPlot(canvas, xy, classes, clearCavas, xi, yi, bw) {
     clearCavas = clearCavas !== false;
+    bw = bw === true;
     xi = (typeof xi !== 'undefined') ? xi : 0;
     yi = (typeof yi !== 'undefined') ? yi : 1;
 
@@ -157,11 +158,14 @@ function paintPlot(canvas, xy, classes, clearCavas, xi, yi) {
     if (clearCavas)
         context.clearRect(0, 0, canvas.width, canvas.height);
     for (var i = 0; i < xy.length; ++i) {
-        context.fillStyle = 'hsl(' + (classes[i] * (360/(maxClass+1))) + ', 100%,50%)';
+        if (bw)
+            context.fillStyle = 'hsl(0, 0%,' + (classes[i] * (100/(maxClass))) + '%)';
+        else
+            context.fillStyle = 'hsl(' + (classes[i] * (360/(maxClass+1))) + ', 100%,50%)';
         context.beginPath();
         var x = margin + (xy[i][xi] * (canvas.width - 2*margin));
         var y = margin + ((1 - xy[i][yi]) * (canvas.height - 2*margin));
-        context.arc(x, y, 3, 0, 2 * Math.PI);
+        context.arc(x, y, 2, 0, 2 * Math.PI);
         context.strokeStyle = "black";
         context.stroke();
         context.fill();
@@ -350,15 +354,15 @@ function go() {
 
     paintPlot(document.getElementById('truth'), original, classes);
     paintPlot(document.getElementById('network'), output, classes);
-    paintPlot(document.getElementById('network21'), output2, classes, 0, 1);
-    paintPlot(document.getElementById('network22'), output2, classes, 1, 2);
-    paintPlot(document.getElementById('network23'), output2, classes, 2, 3);
-    paintPlot(document.getElementById('network24'), output2, classes, 3, 0);
+    paintPlot(document.getElementById('network21'), output2, classes, true, 0, 1);
+    paintPlot(document.getElementById('network22'), output2, classes, true, 1, 2);
+    paintPlot(document.getElementById('network23'), output2, classes, true, 2, 3);
+    paintPlot(document.getElementById('network24'), output2, classes, true, 3, 0);
     paintPlot(document.getElementById('network3'), output3, classes);
 
 
     visualizeNetwork(document.getElementById('output'), net);
-    paintPlot(document.getElementById('output'), original, classes, false);
+    paintPlot(document.getElementById('output'), original, good, false, 0, 1, true);
 
     if (!stop)
         window.setTimeout(go.bind(this), 0);
