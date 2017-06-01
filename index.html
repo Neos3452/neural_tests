@@ -48,6 +48,13 @@ function indexOfMax(arr) {
     return maxIndex;
 }
 
+function shuffle(a) {
+    for (let i = a.length; i; i--) {
+        let j = Math.floor(Math.random() * i);
+        [a[i - 1], a[j]] = [a[j], a[i - 1]];
+    }
+}
+
 function Sigmoid() {
     this.lastValue = 0;
 }
@@ -230,9 +237,10 @@ var errorLabel = document.getElementById('error');
 var iterationLabel = document.getElementById('iteration');
 
 var trainData = 200;
+let numberOfClasses = 2;
 var l = new Layer(2, Neuron.bind(null, 2));
 var l2 = new Layer(4, Neuron.bind(null, 3));
-var l3 = new Layer(2, Neuron.bind(null, 5));
+var l3 = new Layer(numberOfClasses, Neuron.bind(null, 5));
 var net = {
     value: function(input) {
         return l3.value(l2.value(l.value(input).concat([1])).concat([1]));
@@ -252,9 +260,9 @@ function pointInRing(radius, width) {
 }
 
 for (var i = 0; i < trainData; ++i) {
-    var pClass = Math.floor(Math.random() * 2);
+    var pClass = Math.floor(Math.random() * numberOfClasses);
     var x = 0, y = 0;
-    if (pClass) {
+    if (!pClass) {
 //         x = 0.3 + Math.random()/3;
 //         y = 0.3 + Math.random()/3;
         var point = pointInRing(0.15, 0.3);
@@ -270,6 +278,7 @@ for (var i = 0; i < trainData; ++i) {
 }
 var currentIteration = 0;
 var stop = true;
+var itOrder = original.map(function(x, i) { return i; });
 function go() {
     var j = currentIteration++;
 //     if (j >= 10000) {
@@ -282,21 +291,32 @@ function go() {
     var avgError = 0;
 
     var batchSize = 10;
-    var error = [0, 0];
-    for (var i = 0; i < trainData; ++i) {
-        output.push(l.value(original[i]).concat([1]));
-        output2.push(l2.value(output[i]).concat([1]));
-        output3.push(l3.value(output2[i]));
+    var good = [];
+    //shuffle(itOrder);
+    for (var i = 0; i < itOrder.length; ++i) {
+        let input = original[itOrder[i]];
+        let tClass = classes[itOrder[i]];
+        let netOuput = [];
+        netOuput.push(l.value(input).concat([1]));
+        netOuput.push(l2.value(netOuput[0]).concat([1]));
+        netOuput.push(l3.value(netOuput[1]));
 
 
-            error = [0, 0];
-        if (classes[i] > 0.5) {
-            error[0] += output3[i][0] - 0;
-            error[1] += output3[i][1] - 1;
+        let choosenClass = indexOfMax(netOuput[2]);
+        let errors = netOuput[2].map(function(x, i) {
+            if (i == tClass)
+                return x - 1;
+            return x - 0;
+        });
+        /*
+        if (tClass > 0.5) {
+            error[0] += netOuput[2][0] - 0;
+            error[1] += netOuput[2][1] - 1;
         } else {
-            error[0] += output3[i][0] - 1;
-            error[1] += output3[i][1] - 0;
+            error[0] += netOuput[2][0] - 1;
+            error[1] += netOuput[2][1] - 0;
         }
+        */
         /*
         if ((1 + i%batchSize) == batchSize) {
             error = error.map(function(x){return x / batchSize;});
@@ -309,13 +329,18 @@ function go() {
 //         var error = (output3[i] - classes[i]);
 //         var error = (output3[i] > 0.5) == (classes[i] > 0.5);
 //         avgError += error * error;
-        avgError += (output3[i][1] > output3[i][0]) != (classes[i] > 0.5);
-        var errors = error;
-        var l2Errors = l3.inputError(errors, output2[i], true);
-        var l1Errors = l2.inputError(l2Errors, output[i], true);
-        l3.correctErrors(rate, errors, output2[i], true);
-        l2.correctErrors(rate, l2Errors, output[i], true);
-        l.correctErrors(rate, l1Errors, original[i], true);
+        //avgError += (netOuput[2][1] > netOuput[2][0]) != (tClass > 0.5);
+        avgError += choosenClass != tClass;
+        var l2Errors = l3.inputError(errors, netOuput[1], true);
+        var l1Errors = l2.inputError(l2Errors, netOuput[0], true);
+        l3.correctErrors(rate, errors, netOuput[1], true);
+        l2.correctErrors(rate, l2Errors, netOuput[0], true);
+        l.correctErrors(rate, l1Errors, input, true);
+
+        good[itOrder[i]] = choosenClass == tClass;
+        output[itOrder[i]] = (netOuput[0]);
+        output2[itOrder[i]] = (netOuput[1]);
+        output3[itOrder[i]] = (netOuput[2]);
     }
     avgError /= trainData;
     errorLabel.innerHTML = avgError * 100;
