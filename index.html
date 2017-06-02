@@ -1,5 +1,6 @@
 <html>
 <head>
+<script src="https://code.jquery.com/jquery-3.2.1.js" integrity="sha256-DZAnKJ/6XZ9si04Hgrsxu/8s717jcIzLy3oi35EouyE=" crossorigin="anonymous"></script>
 <style>
 canvas {
     border-style: solid;
@@ -21,6 +22,7 @@ canvas {
 <canvas id="network3" width="200px" height="200px"></canvas>
 <br/>
 <canvas id="output" width="200px" height="200px"></canvas>
+<div id="network-vis"></div>
 <br/>
 Iteration: <label id="iteration">0</label>
 <br/>
@@ -56,7 +58,7 @@ function shuffle(a) {
 }
 
 function Sigmoid() {
-    this.lastValue = 0;
+    this.lastValue = NaN;
 }
 
 Sigmoid.prototype.value = function(x) {
@@ -71,7 +73,6 @@ Sigmoid.prototype.derivative = function(x) {
 
 function Neuron(inputSize, func) {
     this.func = func || new Sigmoid();
-//     this.lastValue = 0;
     this.weights = [];
     for (var i = 0; i < inputSize; ++i) {
         this.weights.push(5*Math.random()-2.5);
@@ -105,6 +106,25 @@ Neuron.prototype.adjustWeights = function(learnRate, error, input, useCached) {
     let errGradient = this.errorGradient(error, (useCached ? undefined : input));
     for (var i = 0; i < this.weights.length; ++i) {
         this.weights[i] += -1 * learnRate * errGradient * input[i];
+    }
+}
+
+function NeuronVisualizer(neuron) {
+    this.neuron = neuron;
+    this.dom = $('<div></div>');
+    this.weights = $('<ol></ol>').appendTo(this.dom);
+    this.neuron.weights.forEach(function(w) { $('<li></li>').appendTo(this.weights).text(w); }.bind(this));
+    this.error = $('<span></span>').appendTo(this.dom).text(NaN);
+    this.value = $('<span></span>').appendTo(this.dom).text(this.neuron.func.lastValue);
+}
+
+NeuronVisualizer.prototype.update = function(error) {
+    $('ol li', this.dom).text(function(i) {
+        return this.neuron.weights[i];
+    }.bind(this));
+    this.value.text(this.neuron.func.lastValue);
+    if (typeof error !== 'undefined') {
+        this.error.text(error);
     }
 }
 
@@ -145,6 +165,22 @@ Layer.prototype.correctErrors = function(learningRate, errors, input, useCached)
     }
 }
 
+function LayerVisualizer(layer) {
+    this.layer = layer;
+    this.neuronsVisualizers = this.layer.neurons.map(function(n) { return new NeuronVisualizer(n); });
+    this.dom = $('<div></div>');
+    this.neurons = $('<ol></ol>').appendTo(this.dom);
+    this.neuronsVisualizers.forEach(function(nv) {
+        nv.dom.appendTo(this.neurons);
+    }.bind(this));
+}
+
+LayerVisualizer.prototype.update = function(errors) {
+    for (var i = 0; i < this.neuronsVisualizers.length; ++i) {
+        this.neuronsVisualizers[i].update(errors[i]);
+    }
+}
+
 function paintPlot(canvas, xy, classes, clearCavas, xi, yi, bw) {
     clearCavas = clearCavas !== false;
     bw = bw === true;
@@ -180,18 +216,23 @@ function visualizeNetwork(canvas, network, clearCavas) {
     var pointsPerAxis = 10;
     var intervals = pointsPerAxis-1;
     var step = 1 / intervals;
+    //var input = [];
     var output = [];
+    //var flatOutput = [];
     for (var i = 0; i < pointsPerAxis; ++i) {
         var row = [];
         for (var j = 0; j < pointsPerAxis; ++j) {
-            row.push(network.value([step * j, step * i]));
-            //row.push([0,0]);
+            //input.push([step * j, step * i]);
+            let value = network.value([step * j, step * i]);
+            //flatOutput.push(value);
+            row.push(value);
         }
         output.push(row);
     }
     var context = canvas.getContext('2d');
     if (clearCavas)
         context.clearRect(0, 0, canvas.width, canvas.height);
+
     var scaleY = canvas.height / (intervals);
     var scaleX = canvas.width / (intervals);
     for (var y = 0; y < canvas.height; ++y) {
@@ -226,6 +267,8 @@ function visualizeNetwork(canvas, network, clearCavas) {
             context.fillRect(x, canvas.height - 1 - y, 1, 1);
         }
     }
+
+    //paintPlot(canvas, input, flatOutput.map(function(x) { return indexOfMax(x); }), false,  0, 1, true);
 }
 
 (function() {
@@ -250,6 +293,13 @@ var net = {
         return l3.value(l2.value(l.value(input).concat([1])).concat([1]));
     }
 }
+
+var lv = new LayerVisualizer(l);
+var lv2 = new LayerVisualizer(l2);
+var lv3 = new LayerVisualizer(l3);
+
+$('#network-vis').append(lv.dom).append(lv2.dom).append(lv3.dom);
+
 var original = [];
 var classes = [];
 
@@ -269,11 +319,11 @@ for (var i = 0; i < trainData; ++i) {
     if (!pClass) {
 //         x = 0.3 + Math.random()/3;
 //         y = 0.3 + Math.random()/3;
-        var point = pointInRing(0.15, 0.3);
+        var point = pointInRing(0.125, 0.25);
         x = point[0];
         y = point[1];
     } else {
-        var point = pointInRing(0.5, 0.2);
+        var point = pointInRing(0.425, 0.15);
         x = point[0];
         y = point[1];
     }
@@ -340,6 +390,10 @@ function go() {
         l3.correctErrors(rate, errors, netOuput[1], true);
         l2.correctErrors(rate, l2Errors, netOuput[0], true);
         l.correctErrors(rate, l1Errors, input, true);
+
+        lv.update(l1Errors);
+        lv2.update(l2Errors);
+        lv3.update(errors);
 
         good[itOrder[i]] = choosenClass == tClass;
         output[itOrder[i]] = (netOuput[0]);
