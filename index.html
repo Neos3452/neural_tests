@@ -333,7 +333,8 @@ for (var i = 0; i < trainData; ++i) {
 var currentIteration = 0;
 var stop = true;
 var itOrder = original.map(function(x, i) { return i; });
-function go() {
+function go(learn) {
+    learn = learn !== false;
     var j = currentIteration++;
 //     if (j >= 10000) {
 //         return;
@@ -419,16 +420,16 @@ function go() {
     paintPlot(document.getElementById('output'), original, good, false, 0, 1, true);
 
     if (!stop)
-        window.setTimeout(go.bind(this), 0);
+        window.setTimeout(go.bind(this, true), 0);
 };
 
-// go once
+// go once without learning
 go();
 
 document.getElementById('playpause').onclick = function() {
     stop = !stop;
     if (!stop) {
-        go()
+        go(true)
     }
 }
 })();
