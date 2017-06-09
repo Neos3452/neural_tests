@@ -128,8 +128,24 @@ Sigmoid.prototype.derivative = function(x) {
     return value * (1 - value);
 }
 
+function Tanh() {
+    this.lastValue = NaN;
+}
+
+Tanh.prototype.value = function(x) {
+    var ez = Math.exp(x);
+    var emz = Math.exp(-x);
+    this.lastValue = (ez - emz)/(ez + emz);
+    return this.lastValue;
+}
+
+Tanh.prototype.derivative = function(x) {
+    let value = (typeof x !== 'undefined') ? this.value(x) : this.lastValue;
+    return 1 - (value*value);
+}
+
 function Neuron(inputSize, func) {
-    this.func = func || new Sigmoid();
+    this.func = func || new Tanh();
     this.weights = [];
     for (var i = 0; i < inputSize; ++i) {
         this.weights.push(5*Math.random()-2.5);
