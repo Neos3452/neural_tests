@@ -417,23 +417,42 @@ function pointInRing(radius, width) {
     return [x, y];
 }
 
-for (var i = 0; i < trainData; ++i) {
-    var pClass = Math.floor(Math.random() * numberOfClasses);
-    var x = 0, y = 0;
-    if (!pClass) {
-//         x = 0.3 + Math.random()/3;
-//         y = 0.3 + Math.random()/3;
-        var point = pointInRing(0.125, 0.25);
-        x = point[0];
-        y = point[1];
-    } else {
-        var point = pointInRing(0.425, 0.15);
-        x = point[0];
-        y = point[1];
+function circleInRing() {
+    for (var i = 0; i < trainData; ++i) {
+        var pClass = Math.floor(Math.random() * numberOfClasses);
+        var x = 0, y = 0;
+        if (!pClass) {
+            var point = pointInRing(0.125, 0.25);
+            x = point[0];
+            y = point[1];
+        } else {
+            var point = pointInRing(0.425, 0.15);
+            x = point[0];
+            y = point[1];
+        }
+        original.push([x, y]);
+        classes.push(pClass);
     }
-    original.push([x, y]);
-    classes.push(pClass);
 }
+
+function separable() {
+    for (var i = 0; i < trainData; ++i) {
+        var pClass = Math.floor(Math.random() * numberOfClasses);
+        var x = 0, y = 0;
+        if (!pClass) {
+            var point = pointInRing(0.15, 0.3);
+            x = point[0] - 0.25;
+            y = point[1] - 0.25;
+        } else {
+            var point = pointInRing(0.15, 0.3);
+            x = point[0] + 0.25;
+            y = point[1] + 0.25;
+        }
+        original.push([x, y]);
+        classes.push(pClass);
+    }
+}
+circleInRing();
 var currentIteration = 0;
 var stop = true;
 var itOrder = original.map(function(x, i) { return i; });
