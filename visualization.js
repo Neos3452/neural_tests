@@ -123,7 +123,6 @@ function visualizeNetwork(canvas, network, clearCavas) {
             }
 
             context.fillStyle = 'hsl(' + (indexOfMax(inter) * (360/(inter.length))) + ', 100%,50%)';
-            // TODO: it's flipped, either vertically or horizontally
             context.fillRect(x, canvas.height - 1 - y, 1, 1);
         }
     }
