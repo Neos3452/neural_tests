@@ -159,10 +159,16 @@ Neuron.prototype.errorGradient = function(error, input) {
     return error * this.func.derivative(input && this.weightedInputSum(input));
 }
 
-Neuron.prototype.adjustWeights = function(learnRate, error, input, useCached) {
-    let errGradient = this.errorGradient(error, (useCached ? undefined : input));
+// Neuron.prototype.adjustWeights = function(learnRate, error, input, useCached) {
+//     let errGradient = this.errorGradient(error, (useCached ? undefined : input));
+//     for (var i = 0; i < this.weights.length; ++i) {
+//         this.weights[i] += -1 * learnRate * errGradient * input[i];
+//     }
+// }
+
+Neuron.prototype.adjustWeights = function(learnRate, errorGradient) {
     for (var i = 0; i < this.weights.length; ++i) {
-        this.weights[i] += -1 * learnRate * errGradient * input[i];
+        this.weights[i] += -1 * learnRate * errorGradient[i];
     }
 }
 
@@ -201,25 +207,59 @@ Layer.prototype.value = function(input) {
     return output;
 }
 
-Layer.prototype.inputError = function(errors, input, useCached) {
-    useCached = useCached === true;
+Layer.prototype.errorGradients = function(errors, input) {
+    return this.neurons.map(function(neuron, i) {
+        return neuron.errorGradient(errors[i], input);
+    });
+}
+
+// Layer.prototype.inputError = function(errors, input, useCached) {
+//     useCached = useCached === true;
+//     var inputErrors = [];
+//     for (var j = 0; j < input.length; ++j) {
+//         inputErrors.push(0);
+//     }
+//     for (var i = 0; i < this.neurons.length; ++i) {
+//         var errorGradient = this.neurons[i].errorGradient(errors[i], (useCached ? undefined : input));
+//         for (var j = 0; j < input.length; ++j) {
+//             inputErrors[j] += errorGradient * this.neurons[i].weights[j];
+//         }
+//     }
+//     return inputErrors;
+// }
+
+Layer.prototype.inputError = function(errorGradients) {
     var inputErrors = [];
-    for (var j = 0; j < input.length; ++j) {
+    var inputLength = this.neurons[0].weights.length;
+    for (var j = 0; j < inputLength; ++j) {
         inputErrors.push(0);
     }
     for (var i = 0; i < this.neurons.length; ++i) {
-        var errorGradient = this.neurons[i].errorGradient(errors[i], (useCached ? undefined : input));
-        for (var j = 0; j < input.length; ++j) {
-            inputErrors[j] += errorGradient * this.neurons[i].weights[j];
+        for (var j = 0; j < inputLength; ++j) {
+            inputErrors[j] += errorGradients[i] * this.neurons[i].weights[j];
         }
     }
     return inputErrors;
 }
 
-Layer.prototype.correctErrors = function(learningRate, errors, input, useCached) {
-    useCached = useCached === true;
+// Layer.prototype.correctErrors = function(learningRate, errors, input, useCached) {
+//     useCached = useCached === true;
+//     for (var i = 0; i < this.neurons.length; ++i) {
+//         this.neurons[i].adjustWeights(learningRate, errors[i], input, useCached);
+//     }
+// }
+
+// Layer.prototype.correctErrors = function(learningRate, errors, input, useCached) {
+//     useCached = useCached === true;
+//     for (var i = 0; i < this.neurons.length; ++i) {
+//         let grad = this.neurons[i].errorGradient(errors[i], (useCached ? undefined : input));
+//         this.neurons[i].adjustWeights(learningRate, input.map(function(x) { return x * grad; }));
+//     }
+// }
+
+Layer.prototype.correctErrors = function(learningRate, errorGradients) {
     for (var i = 0; i < this.neurons.length; ++i) {
-        this.neurons[i].adjustWeights(learningRate, errors[i], input, useCached);
+        this.neurons[i].adjustWeights(learningRate, errorGradients[i]);
     }
 }
 
@@ -345,12 +385,16 @@ var iterationLabel = $('#iteration');
 
 var trainData = 200;
 let numberOfClasses = 2;
-var l = new Layer(2, Neuron.bind(null, 2));
-var l2 = new Layer(4, Neuron.bind(null, 3));
-var l3 = new Layer(numberOfClasses, Neuron.bind(null, 5));
+var layers = []
+var l = new Layer(3, Neuron.bind(null, 3));
+layers.push(l);
+var l2 = new Layer(3, Neuron.bind(null, 4));
+layers.push(l2);
+var l3 = new Layer(numberOfClasses, Neuron.bind(null, 4));
+layers.push(l3);
 var net = {
     value: function(input) {
-        return l3.value(l2.value(l.value(input).concat([1])).concat([1]));
+        return l3.value(l2.value(l.value(input.concat([1])).concat([1])).concat([1]));
     }
 }
 
@@ -393,6 +437,11 @@ for (var i = 0; i < trainData; ++i) {
 var currentIteration = 0;
 var stop = true;
 var itOrder = original.map(function(x, i) { return i; });
+
+function emptyErrors() {
+    return layers.map((l)=>l.neurons.map((n)=>n.weights.map((w)=>0)));
+}
+
 function go(learn) {
     learn = learn !== false;
     var j = currentIteration++;
@@ -405,12 +454,15 @@ function go(learn) {
     var output3 = [];
     var avgError = 0;
 
+    var gErrors = emptyErrors();
+
     var batchSize = 10;
     var good = [];
-    //shuffle(itOrder);
-    for (var i = 0; i < itOrder.length; ++i) {
-        let input = original[itOrder[i]];
-        let tClass = classes[itOrder[i]];
+    shuffle(itOrder);
+
+    function step(index) {
+        let input = original[index].concat([1]);
+        let tClass = classes[index];
         let netOuput = [];
         netOuput.push(l.value(input).concat([1]));
         netOuput.push(l2.value(netOuput[0]).concat([1]));
@@ -421,49 +473,111 @@ function go(learn) {
         let errors = netOuput[2].map(function(x, i) {
             if (i == tClass)
                 return x - 1;
-            return x - 0;
+            return x + 1;
         });
-        /*
-        if (tClass > 0.5) {
-            error[0] += netOuput[2][0] - 0;
-            error[1] += netOuput[2][1] - 1;
-        } else {
-            error[0] += netOuput[2][0] - 1;
-            error[1] += netOuput[2][1] - 0;
-        }
-        */
-        /*
+
+
+        var l3ErrGrad = l3.errorGradients(errors, netOuput[1]);
+        var l2Errors = l3.inputError(errors, l3ErrGrad);
+        var l2ErrGrad = l2.errorGradients(l2Errors, netOuput[0]);
+        var l1Errors = l2.inputError(l2Errors, l2ErrGrad);
+        var l1ErrGrad = l.errorGradients(l1Errors, input);
+
+
+        gErrors[2] = l3ErrGrad.map(function(x, i){
+            return netOuput[1].map(function(inp, j){
+                return gErrors[2][i][j] + inp * x;
+            });
+        });
+        gErrors[1] = l2ErrGrad.map(function(x, i){return netOuput[0].map(function(inp, j){return gErrors[1][i][j] + inp * x;});});
+        gErrors[0] = l1ErrGrad.map(function(x, i){return input.map(function(inp, j){return gErrors[0][i][j] + inp * x;});});
+
         if ((1 + i%batchSize) == batchSize) {
-            error = error.map(function(x){return x / batchSize;});
+            for (let ln = 0; ln < 3; ++ln) {
+                for (let nn = 0; nn < gErrors[ln].length; ++nn) {
+                    for (let wn = 0; wn < gErrors[ln][nn].length; ++wn) {
+                        gErrors[ln][nn][wn] /= batchSize;
+                    }
+                }
+            }
 
+            if (learn) {
+                l3.correctErrors(rate, gErrors[2]);
+                l2.correctErrors(rate, gErrors[1]);
+                l.correctErrors(rate, gErrors[0]);
+            }
 
-            error = [0, 0];
+            lv.update(gErrors[0]);
+            lv2.update(gErrors[1]);
+            lv3.update(gErrors[2]);
+/*
+            gErrors = [
+                [
+                [0,0,0],
+                [0,0,0],
+                ],
+                [
+                [0,0,0],
+                [0,0,0],
+                [0,0,0],
+                [0,0,0],
+                ],
+                [
+                [0,0,0,0,0],
+                [0,0,0,0,0],
+                ],
+            ];
+            */
+            gErrors = emptyErrors();
         }
-        */
 
 //         var error = (output3[i] - classes[i]);
 //         var error = (output3[i] > 0.5) == (classes[i] > 0.5);
 //         avgError += error * error;
         //avgError += (netOuput[2][1] > netOuput[2][0]) != (tClass > 0.5);
         avgError += choosenClass != tClass;
+
+        /*
         var l2Errors = l3.inputError(errors, netOuput[1], true);
         var l1Errors = l2.inputError(l2Errors, netOuput[0], true);
-        l3.correctErrors(rate, errors, netOuput[1], true);
-        l2.correctErrors(rate, l2Errors, netOuput[0], true);
-        l.correctErrors(rate, l1Errors, input, true);
+        if (learn) {
+            l3.correctErrors(rate, errors, netOuput[1], true);
+            l2.correctErrors(rate, l2Errors, netOuput[0], true);
+            l.correctErrors(rate, l1Errors, input, true);
+        }*/
 
-        lv.update(l1Errors);
-        lv2.update(l2Errors);
-        lv3.update(errors);
+        good[index] = choosenClass == tClass;
+        output[index] = (netOuput[0]);
+        output2[index] = (netOuput[1]);
+        output3[index] = (netOuput[2]);
 
-        good[itOrder[i]] = choosenClass == tClass;
-        output[itOrder[i]] = (netOuput[0]);
-        output2[itOrder[i]] = (netOuput[1]);
-        output3[itOrder[i]] = (netOuput[2]);
+
+        errorLabel.text((avgError / (index+1)) * 100);
+        iterationLabel.text(j);
+
+//         paintPlot(document.getElementById('truth'), original, classes);
+//         paintPlot(document.getElementById('network'), output, classes);
+//         paintPlot(document.getElementById('network21'), output2, classes, true, 0, 1);
+//         paintPlot(document.getElementById('network22'), output2, classes, true, 1, 2);
+//         paintPlot(document.getElementById('network23'), output2, classes, true, 2, 3);
+//         paintPlot(document.getElementById('network24'), output2, classes, true, 3, 0);
+//         paintPlot(document.getElementById('network3'), output3, classes);
+//
+//
+//         visualizeNetwork(document.getElementById('output'), net);
+//         paintPlot(document.getElementById('output'), original, good, false, 0, 1, true);
+
+//         return choosenClass != tClass;
     }
-    avgError /= trainData;
-    errorLabel.innerHTML = avgError * 100;
-    iterationLabel.innerHTML = j;
+
+    for (var i = 0; i < itOrder.length; ++i) {
+//         avgError += step(i);
+        step(i);
+        window.setTimeout(step.bind(this, i), 0);
+    }
+//     avgError /= itOrder.length;
+//     errorLabel.text(avgError * 100);
+//     iterationLabel.text(j);
 
 //     console.log("Iteration " + j + " error " + avgError);
 
@@ -484,7 +598,7 @@ function go(learn) {
 };
 
 // go once without learning
-go();
+go(false);
 
 document.getElementById('playpause').onclick = function() {
     stop = !stop;
