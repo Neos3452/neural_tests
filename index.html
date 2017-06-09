@@ -171,6 +171,9 @@ Layer.prototype.errorGradients = function(errors, input) {
 // }
 
 Layer.prototype.inputError = function(errorGradients) {
+    if (this.neurons.length !== errorGradients.length) {
+        throw TypeError;
+    }
     var inputErrors = [];
     var inputLength = this.neurons[0].weights.length;
     for (var j = 0; j < inputLength; ++j) {
@@ -219,24 +222,29 @@ var iterationLabel = $('#iteration');
 
 var trainData = 200;
 let numberOfClasses = 2;
-var layers = []
-var l = new Layer(3, Neuron.bind(null, 3));
-layers.push(l);
-var l2 = new Layer(3, Neuron.bind(null, 4));
-layers.push(l2);
-var l3 = new Layer(numberOfClasses, Neuron.bind(null, 4));
-layers.push(l3);
-var net = {
+
+const layers = [
+    new Layer(3,                Neuron.bind(null, 3)),
+    new Layer(3,                Neuron.bind(null, 4)),
+    new Layer(3,                Neuron.bind(null, 4)),
+    new Layer(numberOfClasses,  Neuron.bind(null, 4)),
+];
+const net = {
     value: function(input) {
-        return l3.value(l2.value(l.value(input.concat([1])).concat([1])).concat([1]));
+        let value = input;
+        for (let i = 0; i < layers.length; ++i) {
+            value = layers[i].value(value.concat([1]));
+        }
+        return value;
     }
-}
+};
 
-var lv = new LayerVisualizer(l);
-var lv2 = new LayerVisualizer(l2);
-var lv3 = new LayerVisualizer(l3);
-
-$('#network-vis').append(lv.dom).append(lv2.dom).append(lv3.dom);
+const visualizationContainer = $('#network-vis');
+const layerVisualizations = layers.map(function(l) {
+    const lv = new LayerVisualizer(l);
+    visualizationContainer.append(lv.dom);
+    return lv;
+});
 
 var original = [];
 var classes = [];
@@ -286,7 +294,9 @@ function separable() {
         classes.push(pClass);
     }
 }
+
 circleInRing();
+
 var currentIteration = 0;
 var stop = true;
 var itOrder = original.map(function(x, i) { return i; });
@@ -297,55 +307,58 @@ function emptyErrors() {
 
 function go(learn) {
     learn = learn !== false;
-    var j = currentIteration++;
-//     if (j >= 10000) {
-//         return;
-//     }
+    const j = currentIteration++;
 
-    var output = [];
-    var output2 = [];
-    var output3 = [];
-    var avgError = 0;
+    let avgError = 0;
+    const batchSize = parseInt($('#batchSize')[0].value);
 
-    var gErrors = emptyErrors();
+    let good = [];
 
-    var batchSize = $('#batchSize')[0].value;
-    var good = [];
+    let output = layers.map(function () {
+        return [];
+    });
+    let gErrors = emptyErrors();
+
     shuffle(itOrder);
 
+    let count = 0;
     function step(index) {
-        let input = original[index].concat([1]);
-        let tClass = classes[index];
-        let netOuput = [];
-        netOuput.push(l.value(input).concat([1]));
-        netOuput.push(l2.value(netOuput[0]).concat([1]));
-        netOuput.push(l3.value(netOuput[1]));
+        ++count;
+        const input = original[index];
+        const tClass = classes[index];
 
+        let lastOutput = input;
+        const netInputs = layers.map(function (l) {
+            const input = lastOutput.concat([1]);
+            lastOutput = l.value(input);
+            return input;
+        }).concat([lastOutput.concat([1])]);
 
-        let choosenClass = indexOfMax(netOuput[2]);
-        let errors = netOuput[2].map(function(x, i) {
-            if (i == tClass)
+        const chosenClass = indexOfMax(lastOutput);
+        const outputErrors = lastOutput.map(function (x, i) {
+            if (i === tClass)
                 return x - 1;
             return x + 1;
         });
 
+        let errorGrads = [];
+        let errors = [];
+        errors[layers.length - 1] = outputErrors;
+        errorGrads[layers.length - 1] = layers[layers.length - 1].errorGradients(errors[layers.length - 1], netInputs[layers.length - 1]);
+        for (let i = layers.length - 2; i >= 0; --i) {
+            errors[i] = layers[i+1].inputError(errorGrads[i + 1]);
+            errorGrads[i] = layers[i].errorGradients(errors[i], netInputs[i]);
+        }
 
-        var l3ErrGrad = l3.errorGradients(errors, netOuput[1]);
-        var l2Errors = l3.inputError(errors, l3ErrGrad);
-        var l2ErrGrad = l2.errorGradients(l2Errors, netOuput[0]);
-        var l1Errors = l2.inputError(l2Errors, l2ErrGrad);
-        var l1ErrGrad = l.errorGradients(l1Errors, input);
-
-
-        gErrors[2] = l3ErrGrad.map(function(x, i){
-            return netOuput[1].map(function(inp, j){
-                return gErrors[2][i][j] + inp * x;
+        gErrors = errorGrads.map(function (errGrad, layerIndex) {
+            return errGrad.map(function (x, i) {
+                return netInputs[layerIndex].map(function (inp, j) {
+                    return gErrors[layerIndex][i][j] + inp * x;
+                });
             });
         });
-        gErrors[1] = l2ErrGrad.map(function(x, i){return netOuput[0].map(function(inp, j){return gErrors[1][i][j] + inp * x;});});
-        gErrors[0] = l1ErrGrad.map(function(x, i){return input.map(function(inp, j){return gErrors[0][i][j] + inp * x;});});
 
-        if ((1 + i%batchSize) == batchSize) {
+        if ((count % batchSize) === 0 || count === trainData.length) {
             for (let ln = 0; ln < 3; ++ln) {
                 for (let nn = 0; nn < gErrors[ln].length; ++nn) {
                     for (let wn = 0; wn < gErrors[ln][nn].length; ++wn) {
@@ -355,58 +368,27 @@ function go(learn) {
             }
 
             if (learn) {
-                l3.correctErrors(rate, gErrors[2]);
-                l2.correctErrors(rate, gErrors[1]);
-                l.correctErrors(rate, gErrors[0]);
+                layers.forEach(function (l, i) {
+                    l.correctErrors(rate, gErrors[i]);
+                });
             }
 
-            lv.update(gErrors[0]);
-            lv2.update(gErrors[1]);
-            lv3.update(gErrors[2]);
-/*
-            gErrors = [
-                [
-                [0,0,0],
-                [0,0,0],
-                ],
-                [
-                [0,0,0],
-                [0,0,0],
-                [0,0,0],
-                [0,0,0],
-                ],
-                [
-                [0,0,0,0,0],
-                [0,0,0,0,0],
-                ],
-            ];
-            */
+            layerVisualizations.forEach(function (lv, i) {
+                lv.update(gErrors[i]);
+            });
             gErrors = emptyErrors();
         }
 
-//         var error = (output3[i] - classes[i]);
-//         var error = (output3[i] > 0.5) == (classes[i] > 0.5);
-//         avgError += error * error;
-        //avgError += (netOuput[2][1] > netOuput[2][0]) != (tClass > 0.5);
-        avgError += choosenClass != tClass;
+        avgError += (chosenClass !== tClass);
 
-        /*
-        var l2Errors = l3.inputError(errors, netOuput[1], true);
-        var l1Errors = l2.inputError(l2Errors, netOuput[0], true);
-        if (learn) {
-            l3.correctErrors(rate, errors, netOuput[1], true);
-            l2.correctErrors(rate, l2Errors, netOuput[0], true);
-            l.correctErrors(rate, l1Errors, input, true);
-        }*/
-
-        good[index] = choosenClass == tClass;
-        output[index] = (netOuput[0]);
-        output2[index] = (netOuput[1]);
-        output3[index] = (netOuput[2]);
+        good[index] = (chosenClass === tClass);
+        for (let i = 1; i < netInputs.length; ++i) {
+            output[i-1][index] = netInputs[i];
+        }
 
 
-        errorLabel.text((avgError / (index+1)) * 100);
-        iterationLabel.text(j);
+        errorLabel.text(toFixed((avgError / count) * 100, 2));
+//        iterationLabel.text(j);
 
 //         paintPlot(document.getElementById('truth'), original, classes);
 //         paintPlot(document.getElementById('network'), output, classes);
@@ -419,36 +401,35 @@ function go(learn) {
 //
 //         visualizeNetwork(document.getElementById('output'), net);
 //         paintPlot(document.getElementById('output'), original, good, false, 0, 1, true);
-
-//         return choosenClass != tClass;
     }
 
-    for (var i = 0; i < itOrder.length; ++i) {
-//         avgError += step(i);
+    for (let i = 0; i < itOrder.length; ++i) {
         step(i);
         window.setTimeout(step.bind(this, i), 0);
     }
+    window.setTimeout(function() {
 //     avgError /= itOrder.length;
 //     errorLabel.text(avgError * 100);
-//     iterationLabel.text(j);
+        iterationLabel.text(j);
 
 //     console.log("Iteration " + j + " error " + avgError);
 
-    paintPlot(document.getElementById('truth'), original, classes);
-    paintPlot(document.getElementById('network'), output, classes);
-    paintPlot(document.getElementById('network21'), output2, classes, true, 0, 1);
-    paintPlot(document.getElementById('network22'), output2, classes, true, 1, 2);
-    paintPlot(document.getElementById('network23'), output2, classes, true, 2, 3);
-    paintPlot(document.getElementById('network24'), output2, classes, true, 3, 0);
-    paintPlot(document.getElementById('network3'), output3, classes);
+        paintPlot(document.getElementById('truth'), original, classes);
+        paintPlot(document.getElementById('network'), output[0], classes);
+        paintPlot(document.getElementById('network21'), output[1], classes, true, 0, 1);
+        paintPlot(document.getElementById('network22'), output[1], classes, true, 1, 2);
+        paintPlot(document.getElementById('network23'), output[1], classes, true, 2, 3);
+        paintPlot(document.getElementById('network24'), output[1], classes, true, 3, 0);
+        paintPlot(document.getElementById('network3'), output[output.length - 1], classes);
 
 
-    visualizeNetwork(document.getElementById('output'), net);
-    paintPlot(document.getElementById('output'), original, good, false, 0, 1, true);
+        visualizeNetwork(document.getElementById('output'), net);
+        paintPlot(document.getElementById('output'), original, good, false, 0, 1, true);
 
-    if (!stop)
-        window.setTimeout(go.bind(this, true), 0);
-};
+        if (!stop)
+            window.setTimeout(go.bind(this, true), 0);
+    }, 0);
+}
 
 // go once without learning
 go(false);
