@@ -1,0 +1,55 @@
+
+#graphs {
+    /*float: left;*/
+}
+
+#network-vis {
+    /*display: inline-block;*/
+    /*float: right;*/
+}
+
+.layer {
+    display: inline-block;
+    margin-right: 0.4em;
+}
+
+.layer>ol {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.layer>ol>li {
+    display: block;
+}
+
+.neuron {
+    text-align: justify;
+    margin: 0.4em;
+}
+
+.neuron:after{
+    content: '';
+    display: inline-block;
+    width: 100%;
+    height: 0;
+    font-size:0;
+    line-height:0;
+}
+
+.neuron>ol {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.2em;
+}
+
+.neuron>span {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+canvas {
+    border-style: solid;
+    border-color: black;
+    border-width: 1px;
+}
+
