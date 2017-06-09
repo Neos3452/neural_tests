@@ -1,7 +1,56 @@
 <html>
 <head>
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
 <script src="https://code.jquery.com/jquery-3.2.1.js" integrity="sha256-DZAnKJ/6XZ9si04Hgrsxu/8s717jcIzLy3oi35EouyE=" crossorigin="anonymous"></script>
 <style>
+#graphs {
+    /*float: left;*/
+}
+
+#network-vis {
+    /*display: inline-block;*/
+    /*float: right;*/
+}
+
+.layer {
+    display: inline-block;
+    margin-right: 0.4em;
+}
+
+.layer>ol {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.layer>ol>li {
+    display: block;
+}
+
+.neuron {
+    text-align: justify;
+    margin: 0.4em;
+}
+
+.neuron:after{
+    content: '';
+    display: inline-block;
+    width: 100%;
+    height: 0;
+    font-size:0;
+    line-height:0;
+}
+
+.neuron>ol {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0.2em;
+}
+
+.neuron>span {
+    display: inline-block;
+    vertical-align: middle;
+}
+
 canvas {
     border-style: solid;
     border-color: black;
@@ -10,20 +59,23 @@ canvas {
 </style>
 </head>
 <body>
-<canvas id="truth" width="200px" height="200px"></canvas>
-<br/>
-<canvas id="network" width="200px" height="200px"></canvas>
-<br/>
-<canvas id="network21" width="200px" height="200px"></canvas>
-<canvas id="network22" width="200px" height="200px"></canvas>
-<canvas id="network23" width="200px" height="200px"></canvas>
-<canvas id="network24" width="200px" height="200px"></canvas>
-<br/>
-<canvas id="network3" width="200px" height="200px"></canvas>
-<br/>
-<canvas id="output" width="200px" height="200px"></canvas>
-<div id="network-vis"></div>
-<br/>
+<div>
+    <div id="graphs">
+        <canvas id="truth" width="200px" height="200px"></canvas>
+        <br/>
+        <canvas id="network" width="200px" height="200px"></canvas>
+        <br/>
+        <canvas id="network21" width="200px" height="200px"></canvas>
+        <canvas id="network22" width="200px" height="200px"></canvas>
+        <canvas id="network23" width="200px" height="200px"></canvas>
+        <canvas id="network24" width="200px" height="200px"></canvas>
+        <br/>
+        <canvas id="network3" width="200px" height="200px"></canvas>
+        <br/>
+        <canvas id="output" width="200px" height="200px"></canvas>
+    </div>
+    <div id="network-vis"></div>
+</div>
 Iteration: <label id="iteration">0</label>
 <br/>
 Classified wrong: <label id="error">NaN</label>%
@@ -55,6 +107,11 @@ function shuffle(a) {
         let j = Math.floor(Math.random() * i);
         [a[i - 1], a[j]] = [a[j], a[i - 1]];
     }
+}
+
+function toFixed(value, precision) {
+    var power = Math.pow(10, precision || 0);
+    return String(Math.round(value * power) / power);
 }
 
 function Sigmoid() {
@@ -111,20 +168,21 @@ Neuron.prototype.adjustWeights = function(learnRate, error, input, useCached) {
 
 function NeuronVisualizer(neuron) {
     this.neuron = neuron;
-    this.dom = $('<div></div>');
+    this.dom = $('<div class="neuron"></div>');
     this.weights = $('<ol></ol>').appendTo(this.dom);
-    this.neuron.weights.forEach(function(w) { $('<li></li>').appendTo(this.weights).text(w); }.bind(this));
+    $(document.createTextNode(' ')).appendTo(this.dom);
+    this.neuron.weights.forEach(function(w) { $('<li></li>').appendTo(this.weights).text(toFixed(w, 3)); }.bind(this));
     this.error = $('<span></span>').appendTo(this.dom).text(NaN);
-    this.value = $('<span></span>').appendTo(this.dom).text(this.neuron.func.lastValue);
+    //this.value = $('<span></span>').appendTo(this.dom).text(toFixed(this.neuron.func.lastValue, 3));
 }
 
 NeuronVisualizer.prototype.update = function(error) {
     $('ol li', this.dom).text(function(i) {
-        return this.neuron.weights[i];
+        return toFixed(this.neuron.weights[i], 3);
     }.bind(this));
-    this.value.text(this.neuron.func.lastValue);
+    //this.value.text(toFixed(this.neuron.func.lastValue, 3));
     if (typeof error !== 'undefined') {
-        this.error.text(error);
+        this.error.text(toFixed(error, 3));
     }
 }
 
@@ -168,10 +226,10 @@ Layer.prototype.correctErrors = function(learningRate, errors, input, useCached)
 function LayerVisualizer(layer) {
     this.layer = layer;
     this.neuronsVisualizers = this.layer.neurons.map(function(n) { return new NeuronVisualizer(n); });
-    this.dom = $('<div></div>');
+    this.dom = $('<div class="layer"></div>');
     this.neurons = $('<ol></ol>').appendTo(this.dom);
     this.neuronsVisualizers.forEach(function(nv) {
-        nv.dom.appendTo(this.neurons);
+        nv.dom.appendTo($('<li></li>').appendTo(this.neurons));
     }.bind(this));
 }
 
@@ -194,6 +252,8 @@ function paintPlot(canvas, xy, classes, clearCavas, xi, yi, bw) {
     if (clearCavas)
         context.clearRect(0, 0, canvas.width, canvas.height);
     for (var i = 0; i < xy.length; ++i) {
+        if (typeof xy[i] === 'undefined' || typeof classes[i]  === 'undefined') continue;
+
         if (bw)
             context.fillStyle = 'hsl(0, 0%,' + (classes[i] * (100/(maxClass))) + '%)';
         else
@@ -280,8 +340,8 @@ rateInput.addEventListener('change', function(x) {
     console.log("new rate " + rate);
 });
 
-var errorLabel = document.getElementById('error');
-var iterationLabel = document.getElementById('iteration');
+var errorLabel = $('#error');
+var iterationLabel = $('#iteration');
 
 var trainData = 200;
 let numberOfClasses = 2;
