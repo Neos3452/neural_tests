@@ -359,7 +359,7 @@ function go(learn) {
         });
 
         if ((count % batchSize) === 0 || count === trainData.length) {
-            for (let ln = 0; ln < 3; ++ln) {
+            for (let ln = 0; ln < layers.length; ++ln) {
                 for (let nn = 0; nn < gErrors[ln].length; ++nn) {
                     for (let wn = 0; wn < gErrors[ln][nn].length; ++wn) {
                         gErrors[ln][nn][wn] /= batchSize;
