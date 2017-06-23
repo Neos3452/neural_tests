@@ -31,6 +31,8 @@ Classified wrong: <label id="error">NaN</label>%
 <input id="batchSize" type="number" value="10" step="5" min="1"/>
 <label for="learnRate">Learn rate:</label>
 <input id="learnRate" type="number" value="0.03" step="0.02" min="0.00001"/>
+<label for="momentum">Momentum:</label>
+<input id="momentum" type="number" value="0.3" step="0.1"/>
 <input id="playpause" type="button" value="Play/Pause" />
 </form>
 <script type='text/javascript' src='visualization.js'></script>
@@ -128,9 +130,9 @@ Neuron.prototype.errorGradient = function(error, input) {
 //     }
 // }
 
-Neuron.prototype.adjustWeights = function(learnRate, errorGradient) {
+Neuron.prototype.adjustWeights = function(learnRate, errorGradient, momentum) {
     for (var i = 0; i < this.weights.length; ++i) {
-        this.weights[i] += -1 * learnRate * errorGradient[i];
+        this.weights[i] += -1 * learnRate * errorGradient[i] + momentum[i];
     }
 }
 
@@ -202,9 +204,9 @@ Layer.prototype.inputError = function(errorGradients) {
 //     }
 // }
 
-Layer.prototype.correctErrors = function(learningRate, errorGradients) {
+Layer.prototype.correctErrors = function(learningRate, errorGradients, momentum) {
     for (var i = 0; i < this.neurons.length; ++i) {
-        this.neurons[i].adjustWeights(learningRate, errorGradients[i]);
+        this.neurons[i].adjustWeights(learningRate, errorGradients[i], momentum[i]);
     }
 };
 
@@ -215,6 +217,13 @@ var rate = rateInput.value;
 rateInput.addEventListener('change', function(x) {
     rate = rateInput.value;
     console.log("new rate " + rate);
+});
+
+var momentumInput = document.getElementById('momentum');
+var momentumRate = momentumInput.value;
+momentumInput.addEventListener('change', function(x) {
+    momentumRate = momentumInput.value;
+    console.log("new momentumRate " + momentumRate);
 });
 
 var errorLabel = $('#error');
@@ -318,6 +327,7 @@ function go(learn) {
         return [];
     });
     let gErrors = emptyErrors();
+    let momentum = emptyErrors();
 
     shuffle(itOrder);
 
@@ -368,9 +378,11 @@ function go(learn) {
             }
 
             if (learn) {
+                const oldWeights = layers.map((l)=>l.neurons.map((n)=>n.weights.map((w)=>w)));
                 layers.forEach(function (l, i) {
-                    l.correctErrors(rate, gErrors[i]);
+                    l.correctErrors(rate, gErrors[i], momentum[i]);
                 });
+                momentum = layers.map((l, li)=>l.neurons.map((n, ni)=>n.weights.map((w, wi)=>momentumRate * (w-oldWeights[li][ni][wi]))));
             }
 
             layerVisualizations.forEach(function (lv, i) {
